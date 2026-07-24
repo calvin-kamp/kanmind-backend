@@ -10,6 +10,7 @@ USERS = [
     ("marie.musterfrau@example.com", "Marie Musterfrau"),
     ("john.doe@example.com", "John Doe"),
     ("erika.beispiel@example.com", "Erika Beispiel"),
+    ("kevin@kovacsi.de", "Kevin Kovacsi"),
 ]
 DEFAULT_PASSWORD = "mysecretpassword1234"
 
