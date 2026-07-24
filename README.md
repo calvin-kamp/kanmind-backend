@@ -19,6 +19,7 @@ including per-object permissions (board membership, ownership, authorship).
 - Django
 - Django REST Framework (token authentication)
 - django-cors-headers
+- python-dotenv (environment variables)
 - SQLite (default development database)
 
 ---
@@ -69,10 +70,45 @@ pip install -r requirements.txt
 Otherwise install the packages directly:
 
 ```bash
-pip install django djangorestframework django-cors-headers
+pip install django djangorestframework django-cors-headers python-dotenv
 ```
 
-### 4. Apply the database migrations
+### 4. Configure environment variables
+
+Sensitive settings (like the Django `SECRET_KEY`) are read from a `.env` file
+that is **not** committed to the repository. A `.env.template` is provided as a
+blueprint. Copy it to create your own `.env`:
+
+**Windows (PowerShell):**
+
+```powershell
+copy .env.template .env
+```
+
+**macOS / Linux:**
+
+```bash
+cp .env.template .env
+```
+
+Then generate a fresh `SECRET_KEY` and paste it into your `.env`:
+
+```bash
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+Your `.env` should end up looking like this (no quotes, no spaces around `=`):
+
+```
+SECRET_KEY=your-generated-key-here
+DEBUG=True
+```
+
+The `.env` file is listed in `.gitignore` and stays local. Only `.env.template`
+(with empty placeholder values) is versioned, so every developer sets up their
+own key.
+
+### 5. Apply the database migrations
 
 ```bash
 python manage.py migrate
@@ -81,7 +117,7 @@ python manage.py migrate
 This creates the SQLite database (`db.sqlite3`) and all tables, including the
 token table used for authentication.
 
-### 5. (Optional) Create an admin user
+### 6. (Optional) Create an admin user
 
 To access the Django admin at `/admin/`:
 
@@ -91,7 +127,7 @@ python manage.py createsuperuser
 
 You will be asked for an email, a full name and a password.
 
-### 6. (Optional) Seed the database with demo data
+### 7. (Optional) Seed the database with demo data
 
 A management command creates a few users, boards, tasks and comments so you have
 something to work with immediately:
@@ -104,7 +140,7 @@ All seeded users share the same password (see the top of the seed command). Note
 that the command file must live at `kanban_app/management/commands/seed.py` for
 Django to find it.
 
-### 7. Run the development server
+### 8. Run the development server
 
 ```bash
 python manage.py runserver
@@ -127,8 +163,8 @@ then send it with every request to a protected endpoint:
 Authorization: Token <your-token>
 ```
 
-- `POST /auth/registration/` – create an account, returns a token
-- `POST /auth/login/` – log in, returns a token
+- `POST /api/registration/` – create an account, returns a token
+- `POST /api/login/` – log in, returns a token
 
 ---
 
@@ -154,6 +190,8 @@ Base path: `/api/`
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
+| POST | `/api/registration/` | Create an account, returns a token |
+| POST | `/api/login/` | Log in, returns a token |
 | GET / POST | `/api/boards/` | List boards / create a board |
 | GET / PATCH / DELETE | `/api/boards/<id>/` | Retrieve / update / delete a board |
 | GET / POST | `/api/tasks/` | List tasks / create a task |
@@ -164,4 +202,6 @@ Base path: `/api/`
 | DELETE | `/api/tasks/<task_id>/comments/<comment_id>/` | Delete a comment |
 | GET | `/api/email-check/?email=...` | Look up a user by email |
 
-All `/api/` endpoints require authentication.
+All endpoints require authentication, except `/api/registration/` and
+`/api/login/` — those are public, since they are how you obtain a token in the
+first place.
