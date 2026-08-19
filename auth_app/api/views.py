@@ -22,7 +22,7 @@ class RegistrationView(APIView):
         return Response(
             {
                 "token": token.key,
-                "full_name": user.full_name,
+                "fullname": user.fullname,
                 "email": user.email,
                 "user_id": user.id,
             },
@@ -41,7 +41,7 @@ class LoginView(APIView):
         return Response(
             {
                 "token": token.key,
-                "full_name": user.full_name,
+                "fullname": user.fullname,
                 "email": user.email,
                 "user_id": user.id,
             },
@@ -67,6 +67,6 @@ class EmailCheckView(APIView):
             {
                 "id": user.id,
                 "email": user.email,
-                "full_name": user.full_name,
+                "fullname": user.fullname,
             }
         )

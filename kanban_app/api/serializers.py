@@ -188,7 +188,7 @@ class CommentSerializer(serializers.ModelSerializer):
     # author is read-only and rendered as the author's full name. It is set in the
     # view (perform_create) from the request user, not sent by the client.
     author = serializers.CharField(
-        source="author.full_name",
+        source="author.fullname",
         read_only=True,
     )
 

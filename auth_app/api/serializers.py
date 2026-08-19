@@ -13,7 +13,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "email", "full_name"]
+        fields = ["id", "email", "fullname"]
 
 
 class RegistrationSerializer(serializers.ModelSerializer):
@@ -23,7 +23,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "full_name", "email", "password", "password_confirm"]
+        fields = ["id", "fullname", "email", "password", "password_confirm"]
         extra_kwargs = {
             "password": {"write_only": True},  # accepted on input, never returned
         }
