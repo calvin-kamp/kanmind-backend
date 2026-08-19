@@ -26,9 +26,9 @@ class Command(BaseCommand):
 
         # Create users (idempotent via email)
         users = {}
-        for email, full_name in USERS:
+        for email, fullname in USERS:
             user, created = User.objects.get_or_create(
-                email=email, defaults={"full_name": full_name}
+                email=email, defaults={"fullname": fullname}
             )
             if created:
                 user.set_password(DEFAULT_PASSWORD)

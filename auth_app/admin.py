@@ -10,13 +10,13 @@ class CustomUserAdmin(UserAdmin):
 
     list_display = (
         "email",
-        "full_name",
+        "fullname",
         "is_staff",
     )
 
     search_fields = (
         "email",
-        "full_name",
+        "fullname",
     )
 
     fieldsets = (
@@ -32,7 +32,7 @@ class CustomUserAdmin(UserAdmin):
         (
             "Personal info",
             {
-                "fields": ("full_name",),
+                "fields": ("fullname",),
             },
         ),
         (
@@ -62,7 +62,7 @@ class CustomUserAdmin(UserAdmin):
                 "classes": ("wide",),
                 "fields": (
                     "email",
-                    "full_name",
+                    "fullname",
                     "password1",
                     "password2",
                 ),

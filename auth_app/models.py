@@ -37,7 +37,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
-    full_name = models.CharField(max_length=255)
+    fullname = models.CharField(max_length=255)
 
     objects = CustomUserManager()
 
@@ -45,7 +45,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = "email"
     EMAIL_FIELD = "email"
     REQUIRED_FIELDS = [
-        "full_name"
+        "fullname"
     ]  # prompted for by createsuperuser (besides email/password)
 
     class Meta:
@@ -53,4 +53,4 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name_plural = "Users"
 
     def __str__(self):
-        return self.full_name
+        return self.fullname
