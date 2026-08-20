@@ -123,4 +123,6 @@ class Comment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        """Return comments oldest first, without an explicit order_by."""
+
         ordering = ["created_at"]

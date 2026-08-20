@@ -1,18 +1,15 @@
-"""
-URL configuration for config project.
+"""Root URL configuration.
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+Contents:
+  * admin/ -- Django's admin site.
+  * api/   -- included twice, once from each app's own URL module.
+
+Both apps are mounted under the same ``api/`` prefix, so their routes sit
+side by side in one flat namespace: /api/boards/ and /api/tasks/ come from
+kanban_app, /api/registration/ and /api/login/ from auth_app. Django tries the
+includes in order and falls through to the next one when no pattern matches.
+
+Docs: https://docs.djangoproject.com/en/6.0/topics/http/urls/
 """
 
 from django.contrib import admin

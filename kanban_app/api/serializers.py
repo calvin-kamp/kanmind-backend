@@ -88,6 +88,8 @@ class TaskSerializer(BoardMembershipMixin, serializers.ModelSerializer):
     comments_count = serializers.SerializerMethodField()
 
     class Meta:
+        """Full task shape, including the board the task belongs to."""
+
         model = Task
         fields = [
             "id",
@@ -123,6 +125,8 @@ class BoardTaskSerializer(TaskSerializer):
     """
 
     class Meta(TaskSerializer.Meta):
+        """Inherit everything from TaskSerializer, but drop ``board``."""
+
         fields = [
             "id",
             "title",
@@ -164,6 +168,8 @@ class TaskUpdateSerializer(BoardMembershipMixin, serializers.ModelSerializer):
     reviewer = UserSerializer(read_only=True)
 
     class Meta:
+        """Task fields that may change on update; ``board`` is not one of them."""
+
         model = Task
         fields = [
             "id",
@@ -197,6 +203,8 @@ class BoardSerializer(serializers.ModelSerializer):
     tasks_high_prio_count = serializers.SerializerMethodField()
 
     class Meta:
+        """Board summary: IDs in, aggregate counts out."""
+
         model = Board
         fields = [
             "id",
@@ -237,6 +245,8 @@ class BoardDetailSerializer(serializers.ModelSerializer):
     tasks = BoardTaskSerializer(many=True, read_only=True)
 
     class Meta:
+        """Board with its members and tasks nested as full objects."""
+
         model = Board
         fields = [
             "id",
@@ -262,6 +272,8 @@ class BoardUpdateSerializer(serializers.ModelSerializer):
     members_data = UserSerializer(source="members", many=True, read_only=True)
 
     class Meta:
+        """Board update: IDs in via ``members``, objects out via the _data fields."""
+
         model = Board
         fields = [
             "id",
@@ -285,5 +297,7 @@ class CommentSerializer(serializers.ModelSerializer):
     )
 
     class Meta:
+        """The four fields every comment response carries."""
+
         model = Comment
         fields = ["id", "created_at", "author", "content"]

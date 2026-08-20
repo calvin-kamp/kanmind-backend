@@ -1,3 +1,15 @@
+"""Management command that fills the database with development data.
+
+Contents:
+  * USERS            -- the accounts that get created, as (email, fullname).
+  * DEFAULT_PASSWORD -- the password every seeded account receives.
+  * Command          -- the command itself, run with ``manage.py seed``.
+
+The command is safe to run repeatedly: boards, tasks and comments are dropped
+and rebuilt each time, while users are looked up by email and only created if
+they are missing, so existing accounts keep their password.
+"""
+
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
@@ -16,15 +28,24 @@ DEFAULT_PASSWORD = "mysecretpassword1234"
 
 
 class Command(BaseCommand):
+    """Seeds users, boards, tasks and comments for local development.
+
+    ``help`` is the text ``manage.py help seed`` prints.
+    """
+
     help = "Seeds the database with dummy data (users, boards, tasks, comments)."
 
     def handle(self, *args, **options):
-        # Remove existing kanban data (users are kept)
+        """Rebuild the sample data and report what was written.
+
+        Deletion runs from the innermost model outwards -- comments, then tasks,
+        then boards -- so nothing is removed while another row still references
+        it. Users are kept.
+        """
         Comment.objects.all().delete()
         Task.objects.all().delete()
         Board.objects.all().delete()
 
-        # Create users (idempotent via email)
         users = {}
         for email, fullname in USERS:
             user, created = User.objects.get_or_create(
@@ -41,13 +62,11 @@ class Command(BaseCommand):
         john = users["john.doe@example.com"]
         erika = users["erika.beispiel@example.com"]
 
-        # Boards
         board1 = Board.objects.create(owner=max_u, title="Project X")
         board1.members.add(max_u, marie, john)
         board2 = Board.objects.create(owner=marie, title="Marketing")
         board2.members.add(marie, erika)
 
-        # Tasks
         Task.objects.create(
             board=board1,
             title="Write API documentation",
@@ -82,7 +101,6 @@ class Command(BaseCommand):
             due_date="2025-03-10",
         )
 
-        # Comments
         Comment.objects.create(
             task=t2, author=max_u, content="Looks good, one small note."
         )

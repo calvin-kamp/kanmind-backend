@@ -1,3 +1,15 @@
+"""Serializers for the authentication endpoints.
+
+Contents:
+  * UserSerializer         -- compact, read-only user representation, reused for
+                              all nested user output across the API.
+  * RegistrationSerializer -- creates a user, confirms the password via the
+                              input-only field ``repeated_password`` and stores
+                              it hashed.
+  * LoginSerializer        -- plain serializer that only verifies credentials
+                              and passes the resolved user on to the view.
+"""
+
 from django.contrib.auth import authenticate
 from rest_framework import serializers
 
@@ -12,33 +24,45 @@ class UserSerializer(serializers.ModelSerializer):
     """
 
     class Meta:
+        """Expose only the three fields other endpoints nest."""
+
         model = User
         fields = ["id", "email", "fullname"]
 
 
 class RegistrationSerializer(serializers.ModelSerializer):
-    # Input-only helper field: exists purely to confirm the password.
-    # It is not a model field and is never stored.
+    """Creates a new user account.
+
+    ``repeated_password`` is an input-only helper field: it exists purely to
+    confirm the password, is not a model field and is never stored. ``password``
+    is accepted on input but never returned.
+    """
+
     repeated_password = serializers.CharField(write_only=True)
 
     class Meta:
+        """Accept both password fields on input, return neither."""
+
         model = User
         fields = ["id", "fullname", "email", "password", "repeated_password"]
         extra_kwargs = {
-            "password": {"write_only": True},  # accepted on input, never returned
+            "password": {"write_only": True},
         }
 
     def validate(self, data):
-        # Object-level validation: both password fields must match.
+        """Object-level validation: both password fields must match."""
         if data["password"] != data["repeated_password"]:
             raise serializers.ValidationError("Passwords do not match")
         return data
 
     def create(self, validated_data):
-        # repeated_password is not a model field -> remove it before creating.
+        """Create the user with a hashed password.
+
+        ``repeated_password`` is dropped because it is not a model field, and
+        the password goes through ``set_password`` instead of being written to
+        the database in clear text.
+        """
         validated_data.pop("repeated_password")
-        # Pull the password out and hash it via set_password instead of writing
-        # it to the database in clear text.
         password = validated_data.pop("password")
         user = User(**validated_data)
         user.set_password(password)
@@ -47,18 +71,23 @@ class RegistrationSerializer(serializers.ModelSerializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    """Plain serializer (not model-bound): only validates credentials,
-    it does not create or update anything."""
+    """Validates login credentials.
+
+    Plain serializer (not model-bound): it only checks the credentials, it does
+    not create or update anything.
+    """
 
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        # authenticate() checks the password against the stored hash. Since the
-        # custom user logs in via email, the email is passed as "username".
+        """Verify the credentials and hand the resolved user to the view.
+
+        ``authenticate`` checks the password against the stored hash. Since the
+        custom user logs in via email, the email is passed as ``username``.
+        """
         user = authenticate(username=data["email"], password=data["password"])
         if not user:
             raise serializers.ValidationError("Invalid Login credentials")
-        # Pass the resolved user to the view so it can issue a token.
         data["user"] = user
         return data
