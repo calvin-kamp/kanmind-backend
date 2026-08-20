@@ -1,38 +1,66 @@
+"""Database models for the kanban domain.
+
+Contents:
+  * Board   -- owned by one user, shared with its members.
+  * Task    -- a card on a board, with the nested TextChoices classes ``Status``
+               and ``Priority`` holding the allowed values.
+  * Comment -- written by a user on a task, ordered oldest first.
+
+Deletion behaviour: a board dies with its owner and takes its tasks and their
+comments with it (CASCADE), while assignee, reviewer and creator are set to NULL
+when that user is deleted, so the task itself survives (SET_NULL).
+"""
+
 from django.conf import settings
 from django.db import models
 
 
 class Board(models.Model):
-    # The user who created / owns the board.
-    # CASCADE: if the owner is deleted, their boards are deleted too.
+    """A kanban board owned by one user and shared with its members.
+
+    ``owner`` is the user who created the board; CASCADE means their boards are
+    deleted along with them, and ``user.owned_boards`` lists them.
+    ``members`` holds everyone with access; ``user.boards`` lists all boards a
+    user is a member of.
+    """
+
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        related_name="owned_boards",  # user.owned_boards -> boards this user owns
+        related_name="owned_boards",
         on_delete=models.CASCADE,
     )
     title = models.CharField(max_length=128)
-    # Users with access to the board (many-to-many).
-    # user.boards -> all boards a user is a member of.
     members = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="boards")
 
     def __str__(self):
+        """Show the board title in the admin and in shell output."""
         return self.title
 
 
 class Task(models.Model):
-    # Fixed, allowed values for the status / priority fields.
+    """A single card on a board.
+
+    A task always belongs to exactly one board; ``board.tasks`` lists them all.
+    ``assignee``, ``reviewer`` and ``creator`` are optional user references, and
+    SET_NULL keeps the task alive if the referenced user is deleted -- the field
+    simply becomes NULL. ``created_at`` is written once, on creation.
+    """
+
     class Status(models.TextChoices):
+        """Allowed values for the ``status`` field."""
+
         TO_DO = "to-do", "To Do"
         IN_PROGRESS = "in-progress", "In Progress"
         REVIEW = "review", "Review"
         DONE = "done", "Done"
 
     class Priority(models.TextChoices):
+        """Allowed values for the ``priority`` field."""
+
         LOW = "low", "Low"
         MEDIUM = "medium", "Medium"
         HIGH = "high", "High"
 
-    # A task always belongs to exactly one board; board.tasks -> all its tasks.
     board = models.ForeignKey(Board, on_delete=models.CASCADE, related_name="tasks")
     title = models.CharField(max_length=128, blank=False)
     description = models.TextField(blank=True)
@@ -42,10 +70,6 @@ class Task(models.Model):
     priority = models.CharField(
         max_length=20, choices=Priority.choices, default=Priority.MEDIUM
     )
-
-    # assignee / reviewer / creator are optional user references.
-    # SET_NULL keeps the task alive if the referenced user is deleted
-    # (the field simply becomes NULL).
     assignee = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -68,20 +92,26 @@ class Task(models.Model):
         blank=True,
     )
     due_date = models.DateField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)  # set once, on creation
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
+        """Show the task title in the admin and in shell output."""
         return self.title
 
 
 class Comment(models.Model):
-    # The author of the comment. CASCADE: comments die with their author.
+    """A comment written on a task.
+
+    ``author`` uses CASCADE, so comments are removed together with their author.
+    ``task`` points at the task the comment belongs to; ``task.comments`` lists
+    all comments of a task. Comments are always returned oldest first.
+    """
+
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="authored_comments",
     )
-    # The task this comment belongs to; task.comments -> all comments of a task.
     task = models.ForeignKey(
         Task,
         on_delete=models.CASCADE,
@@ -93,5 +123,4 @@ class Comment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        # Comments are always returned oldest first.
         ordering = ["created_at"]

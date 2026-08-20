@@ -9,6 +9,16 @@ DRF calls two different hooks depending on the action:
 Each class below documents which object type it expects as `obj`, because a
 permission written for a Board will crash if attached to a Task view (a Task has
 no `.members`), and vice versa.
+
+Contents:
+  * IsBoardMember            -- obj = Board, members and the owner.
+  * IsBoardOwner             -- obj = Board, the owner only (delete).
+  * IsTaskBoardMember        -- obj = Task, members and owner of its board.
+  * IsTaskCreatorOrBoardOwner -- obj = Task, the creator or the board owner
+                                (delete).
+  * IsTaskBoardMemberFromURL -- view-level check for the nested comment routes,
+                                which have no single object to inspect.
+  * IsAuthor                 -- obj = Comment, the author only (delete).
 """
 
 from rest_framework.generics import get_object_or_404
@@ -21,6 +31,7 @@ class IsBoardMember(BasePermission):
     """obj = Board. Allowed for members and the owner of the board."""
 
     def has_object_permission(self, request, view, obj):
+        """Allow if the user is listed as a member or is the owner."""
         return (
             obj.members.filter(id=request.user.id).exists()
             or obj.owner_id == request.user.id
@@ -31,6 +42,7 @@ class IsBoardOwner(BasePermission):
     """obj = Board. Allowed for the owner only."""
 
     def has_object_permission(self, request, view, obj):
+        """Allow only the user the board belongs to."""
         return obj.owner_id == request.user.id
 
 
@@ -38,7 +50,8 @@ class IsTaskBoardMember(BasePermission):
     """obj = Task. Member/owner of the board the task belongs to."""
 
     def has_object_permission(self, request, view, obj):
-        board = obj.board  # step up from the task to its board
+        """Step up from the task to its board and check membership there."""
+        board = obj.board
         return (
             board.members.filter(id=request.user.id).exists()
             or board.owner_id == request.user.id
@@ -49,6 +62,7 @@ class IsTaskCreatorOrBoardOwner(BasePermission):
     """obj = Task. Allowed for the task creator OR the board owner (used for delete)."""
 
     def has_object_permission(self, request, view, obj):
+        """Allow the user who created the task, or the owner of its board."""
         return (
             obj.creator_id == request.user.id or obj.board.owner_id == request.user.id
         )
@@ -63,6 +77,7 @@ class IsTaskBoardMemberFromURL(BasePermission):
     """
 
     def has_permission(self, request, view):
+        """Load the task named in the URL and check board membership."""
         task = get_object_or_404(Task, id=view.kwargs["task_id"])
         board = task.board
         return (
@@ -75,4 +90,5 @@ class IsAuthor(BasePermission):
     """obj = Comment. Allowed for the author of the comment only (used for delete)."""
 
     def has_object_permission(self, request, view, obj):
+        """Allow only the user who wrote the comment."""
         return obj.author_id == request.user.id
