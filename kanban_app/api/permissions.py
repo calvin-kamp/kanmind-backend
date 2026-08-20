@@ -71,17 +71,6 @@ class IsTaskBoardMemberFromURL(BasePermission):
         )
 
 
-class IsCommentBoardMember(BasePermission):
-    """obj = Comment. Member/owner of the board the comment belongs to."""
-
-    def has_object_permission(self, request, view, obj):
-        board = obj.task.board  # comment -> task -> board
-        return (
-            board.members.filter(id=request.user.id).exists()
-            or board.owner_id == request.user.id
-        )
-
-
 class IsAuthor(BasePermission):
     """obj = Comment. Allowed for the author of the comment only (used for delete)."""
 

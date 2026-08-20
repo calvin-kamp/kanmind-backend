@@ -1,5 +1,7 @@
+from django.db.models import Q
 from rest_framework import generics, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -17,7 +19,6 @@ from .permissions import (
     IsAuthor,
     IsBoardMember,
     IsBoardOwner,
-    IsCommentBoardMember,
     IsTaskBoardMember,
     IsTaskBoardMemberFromURL,
     IsTaskCreatorOrBoardOwner,
@@ -25,7 +26,14 @@ from .permissions import (
 
 
 class BoardViewSet(viewsets.ModelViewSet):
-    queryset = Board.objects.all()
+    def get_queryset(self):
+        # The list endpoint must only expose boards the user has access to.
+        # Single-object actions keep the full queryset, otherwise a board the
+        # user may not see would give 404 instead of the documented 403.
+        if self.action != "list":
+            return Board.objects.all()
+        user = self.request.user
+        return Board.objects.filter(Q(owner=user) | Q(members=user)).distinct()
 
     def get_serializer_class(self):
         # Each action returns a different shape, so the serializer is chosen per action:
@@ -40,8 +48,10 @@ class BoardViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         # Instances (with "()") because we override get_permissions ourselves.
-        if self.action in ("update", "partial_update", "destroy"):
-            return [IsAuthenticated(), IsBoardOwner()]  # only the owner may edit/delete
+        if self.action in ("update", "partial_update"):
+            return [IsAuthenticated(), IsBoardMember()]  # owner or member may edit
+        if self.action == "destroy":
+            return [IsAuthenticated(), IsBoardOwner()]  # only the owner may delete
         if self.action == "create":
             return [IsAuthenticated()]  # any logged-in user may create
         return [IsAuthenticated(), IsBoardMember()]  # members may view
@@ -54,7 +64,16 @@ class BoardViewSet(viewsets.ModelViewSet):
 
 
 class TaskViewSet(viewsets.ModelViewSet):
-    queryset = Task.objects.all()
+    def get_queryset(self):
+        # Tasks are only visible through boards the user has access to. Detail
+        # actions keep the full queryset so the permission classes can answer
+        # with 403 instead of hiding the task behind a 404.
+        if self.action not in ("list", "assigned_to_me", "reviewing"):
+            return Task.objects.all()
+        user = self.request.user
+        return Task.objects.filter(
+            Q(board__owner=user) | Q(board__members=user)
+        ).distinct()
 
     def get_serializer_class(self):
         # On update the board must not be changeable, so a serializer without the
@@ -73,6 +92,14 @@ class TaskViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsTaskBoardMember()]  # board members
         return [IsAuthenticated()]  # list/create and the custom actions below
 
+    def create(self, request, *args, **kwargs):
+        # A board id that does not exist must give 404, not a 400 from the field
+        # validation. Membership itself is checked in TaskSerializer.validate_board.
+        board_id = request.data.get("board")
+        if board_id is not None and not Board.objects.filter(id=board_id).exists():
+            raise NotFound("Board not found.")
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         # Record who created the task (needed for the delete permission).
         serializer.save(creator=self.request.user)
@@ -80,14 +107,14 @@ class TaskViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], url_path="assigned-to-me")
     def assigned_to_me(self, request):
         # GET /api/tasks/assigned-to-me/ -> tasks where the current user is the assignee.
-        tasks = Task.objects.filter(assignee=request.user)
+        tasks = self.get_queryset().filter(assignee=request.user)
         serializer = self.get_serializer(tasks, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"], url_path="reviewing")
     def reviewing(self, request):
         # GET /api/tasks/reviewing/ -> tasks where the current user is the reviewer.
-        tasks = Task.objects.filter(reviewer=request.user)
+        tasks = self.get_queryset().filter(reviewer=request.user)
         serializer = self.get_serializer(tasks, many=True)
         return Response(serializer.data)
 
@@ -108,17 +135,12 @@ class CommentListView(generics.ListCreateAPIView):
         serializer.save(author=self.request.user, task_id=self.kwargs["task_id"])
 
 
-class CommentDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Nested endpoint: /api/tasks/<task_id>/comments/<comment_id>/."""
+class CommentDetailView(generics.DestroyAPIView):
+    """Nested endpoint: /api/tasks/<task_id>/comments/<comment_id>/ (delete only)."""
 
     serializer_class = CommentSerializer
     lookup_url_kwarg = "comment_id"  # DRF looks up the object by this URL kwarg
-
-    def get_permissions(self):
-        # Deleting is restricted to the author; viewing/editing to board members.
-        if self.request.method == "DELETE":
-            return [IsAuthenticated(), IsAuthor()]
-        return [IsAuthenticated(), IsCommentBoardMember()]
+    permission_classes = [IsAuthenticated, IsAuthor]
 
     def get_queryset(self):
         return Comment.objects.filter(task_id=self.kwargs["task_id"])

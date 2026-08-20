@@ -19,24 +19,24 @@ class UserSerializer(serializers.ModelSerializer):
 class RegistrationSerializer(serializers.ModelSerializer):
     # Input-only helper field: exists purely to confirm the password.
     # It is not a model field and is never stored.
-    password_confirm = serializers.CharField(write_only=True)
+    repeated_password = serializers.CharField(write_only=True)
 
     class Meta:
         model = User
-        fields = ["id", "fullname", "email", "password", "password_confirm"]
+        fields = ["id", "fullname", "email", "password", "repeated_password"]
         extra_kwargs = {
             "password": {"write_only": True},  # accepted on input, never returned
         }
 
     def validate(self, data):
         # Object-level validation: both password fields must match.
-        if data["password"] != data["password_confirm"]:
+        if data["password"] != data["repeated_password"]:
             raise serializers.ValidationError("Passwords do not match")
         return data
 
     def create(self, validated_data):
-        # password_confirm is not a model field -> remove it before creating.
-        validated_data.pop("password_confirm")
+        # repeated_password is not a model field -> remove it before creating.
+        validated_data.pop("repeated_password")
         # Pull the password out and hash it via set_password instead of writing
         # it to the database in clear text.
         password = validated_data.pop("password")

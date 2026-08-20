@@ -1,3 +1,5 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import validate_email
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.generics import get_object_or_404
@@ -60,6 +62,14 @@ class EmailCheckView(APIView):
         if not email:
             return Response(
                 {"detail": "Query parameter 'email' is missing."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            # Malformed address -> 400, not 404.
+            validate_email(email)
+        except DjangoValidationError:
+            return Response(
+                {"detail": "Invalid email format."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         user = get_object_or_404(User, email=email)  # 404 if no such user exists

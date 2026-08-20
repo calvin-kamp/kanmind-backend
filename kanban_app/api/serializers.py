@@ -1,11 +1,35 @@
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 
 from auth_app.api.serializers import UserSerializer
 from auth_app.models import User
 from kanban_app.models import Board, Comment, Task
 
 
-class TaskSerializer(serializers.ModelSerializer):
+def _has_board_access(board, user):
+    """True if the user is a member or the owner of the board."""
+    return board.members.filter(id=user.id).exists() or board.owner_id == user.id
+
+
+class BoardMembershipMixin:
+    """Shared validation for the task serializers.
+
+    assignee and reviewer must belong to the board the task lives on.
+    """
+
+    def validate(self, data):
+        board = data.get("board") or getattr(self.instance, "board", None)
+        if board is not None:
+            for field in ("assignee", "reviewer"):
+                user = data.get(field)
+                if user is not None and not _has_board_access(board, user):
+                    raise serializers.ValidationError(
+                        {f"{field}_id": "User is not a member of this board."}
+                    )
+        return data
+
+
+class TaskSerializer(BoardMembershipMixin, serializers.ModelSerializer):
     """Read/write serializer for tasks (list, create, retrieve).
 
     Two-field pattern for the user relations: the client sends plain IDs
@@ -49,15 +73,43 @@ class TaskSerializer(serializers.ModelSerializer):
             "comments_count",
         ]
 
+    def validate_board(self, board):
+        # Only members of the target board may create tasks on it -> 403.
+        user = self.context["request"].user
+        if not _has_board_access(board, user):
+            raise PermissionDenied("You are not a member of this board.")
+        return board
+
     def get_comments_count(self, obj):
         return obj.comments.count()  # uses the Comment.task related_name "comments"
 
 
-class TaskUpdateSerializer(serializers.ModelSerializer):
+class BoardTaskSerializer(TaskSerializer):
+    """Task shape used inside the board detail response: without "board",
+    because the board is already the surrounding object."""
+
+    class Meta(TaskSerializer.Meta):
+        fields = [
+            "id",
+            "title",
+            "description",
+            "status",
+            "priority",
+            "assignee",
+            "assignee_id",
+            "reviewer",
+            "reviewer_id",
+            "due_date",
+            "comments_count",
+        ]
+
+
+class TaskUpdateSerializer(BoardMembershipMixin, serializers.ModelSerializer):
     """Serializer used for PATCH/PUT on a task.
 
-    Identical to TaskSerializer but without the "board" field: the board a task
-    belongs to must not be changed on update, so the field is simply omitted.
+    Without the "board" field: the board a task belongs to must not be changed
+    on update, so the field is simply omitted. comments_count is omitted too,
+    the update response does not carry it.
     """
 
     assignee_id = serializers.PrimaryKeyRelatedField(
@@ -76,7 +128,6 @@ class TaskUpdateSerializer(serializers.ModelSerializer):
     )
     assignee = UserSerializer(read_only=True)
     reviewer = UserSerializer(read_only=True)
-    comments_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -91,11 +142,7 @@ class TaskUpdateSerializer(serializers.ModelSerializer):
             "reviewer",
             "reviewer_id",
             "due_date",
-            "comments_count",
         ]
-
-    def get_comments_count(self, obj):
-        return obj.comments.count()
 
 
 class BoardSerializer(serializers.ModelSerializer):
@@ -147,7 +194,7 @@ class BoardDetailSerializer(serializers.ModelSerializer):
 
     owner_id = serializers.IntegerField(read_only=True)
     members = UserSerializer(many=True, read_only=True)
-    tasks = TaskSerializer(many=True, read_only=True)
+    tasks = BoardTaskSerializer(many=True, read_only=True)
 
     class Meta:
         model = Board
@@ -194,4 +241,4 @@ class CommentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Comment
-        fields = ["id", "author", "content", "created_at"]
+        fields = ["id", "created_at", "author", "content"]
